@@ -1,0 +1,32 @@
+{
+  "name": "trading-bot",
+  "version": "1.0.0",
+  "description": "Dollar Cost Averaging (DCA) AWS Lambda trading bot",
+  "main": "index.js",
+  "scripts": {
+    "test": "ts-node -r dotenv/config test.ts",
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/manjime83/trading-bot.git"
+  },
+  "author": "Manuel Jiménez <man.jime@mail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/manjime83/trading-bot/issues"
+  },
+  "homepage": "https://github.com/manjime83/trading-bot#readme",
+  "dependencies": {
+    "ccxt": "^1.41.81"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.71",
+    "@types/node": "^14.14.25",
+    "aws-sdk": "^2.841.0",
+    "dotenv": "^8.2.0",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.1.5"
+  },
+  "type": "module"
+}

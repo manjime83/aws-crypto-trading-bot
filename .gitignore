@@ -1,0 +1,6 @@
+lambda/node_modules/
+lambda/.env
+lambda/*.js
+
+*.zip
+*.sh

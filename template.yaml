@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  BinanceKey:
+    Type: String
+  BinanceSecret:
+    Type: String
+    NoEcho: true
+  TradingBotConfig:
+    Type: List<String>
+    Description: BASE_ASSET,QUOTE_ASSET,QUOTE_ORDER_QTY
+  NotificationFromEmail:
+    Type: String
+  NotificationToEmail:
+    Type: String
+
+Resources:
+  TradingBotSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${AWS::StackName}-secret
+      SecretString: !Sub '{ "apiKey": "${BinanceKey}", "secret": "${BinanceSecret}" }'
+
+  TradingBotRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AdditionalPolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref TradingBotSecret
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                Resource:
+                  - !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${NotificationFromEmail}
+                  - !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${NotificationToEmail}
+
+  TradingBotFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref AWS::StackName
+      Handler: index.handler
+      Runtime: nodejs12.x
+      Role: !GetAtt TradingBotRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event, context) => {
+            return {
+              statusCode: 501,
+              headers: { 'content-type': 'text/plain' },
+              body: 'The server does not support the functionality required to fulfill the request.',
+            };
+          };
+      Environment:
+        Variables:
+          BINANCE_SECRET: !Ref TradingBotSecret
+          INVESTMENT_BASE_ASSET: !Select [0, !Ref TradingBotConfig]
+          INVESTMENT_QUOTE_ASSET: !Select [1, !Ref TradingBotConfig]
+          INVESTMENT_QUOTE_ORDER_QTY: !Select [2, !Ref TradingBotConfig]
+          NOTIFICATION_FROM_EMAIL: !Ref NotificationFromEmail
+          NOTIFICATION_TO_EMAIL: !Ref NotificationToEmail
+      MemorySize: 192
+      Timeout: 30
+
+  TradingBotLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ["/", ["", aws, lambda, !Ref TradingBotFunction]]
+      RetentionInDays: 30
+
+  TradingBotRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${AWS::StackName}-rule
+      ScheduleExpression: cron(30 14 * * ? *)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TradingBotFunction.Arn
+          Id: TradingBotFunction
+
+  TradingBotPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TradingBotRule.Arn
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt TradingBotFunction.Arn
