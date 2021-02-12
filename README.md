@@ -1,3 +1,5 @@
+## deploy.sh
+
 ```bash
 aws cloudformation deploy --template-file template.yaml --stack-name trading-bot \
  --capabilities CAPABILITY_NAMED_IAM --tags user:application=trading-bot --parameter-overrides \
@@ -6,6 +8,8 @@ aws cloudformation deploy --template-file template.yaml --stack-name trading-bot
  TradingBotConfig=BTC,USDT,25 \
  NotificationFromEmail=<EMAIL> NotificationToEmail=<EMAIL>
 ```
+
+## update.sh
 
 ```bash
 cd lambda
