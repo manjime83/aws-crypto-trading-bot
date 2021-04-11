@@ -1,4 +1,5 @@
 import { Handler } from "aws-lambda";
+import axios from "axios";
 import Binance, { ErrorCodes, SymbolPriceFilter, SymbolLotSizeFilter } from "binance-api-node";
 import { Decimal } from "decimal.js";
 import * as AWS from "aws-sdk";
@@ -50,6 +51,7 @@ const dca = async ({
     try {
       const takeProfitOrder = await binance.getOrder({ symbol, orderId: Item.takeProfitOrderId });
       if (takeProfitOrder.status !== "NEW") {
+        // TODO: if CANCELLED reset all
         await sns
           .publish({
             TopicArn: TOPIC_ARN,
@@ -149,21 +151,25 @@ const dca = async ({
 };
 
 export const handler: Handler<{
-  [symbol: string]: {
-    quoteOrderQty: number;
-    takeProfit: number;
-    accumulationOrders: number;
-    martingale: number;
-  };
+  configUrl: string;
 }> = async (event) => {
+  const input: {
+    [symbol: string]: {
+      quoteOrderQty: number;
+      takeProfit: number;
+      accumulationOrders: number;
+      martingale: number;
+    };
+  } = (await axios.get(event.configUrl)).data;
+
   const binance = await binancePromise;
 
   const [exchangeInfo, prices] = await Promise.all([binance.exchangeInfo(), binance.prices()]);
-  const symbols = exchangeInfo.symbols.filter(({ symbol }) => Object.keys(event).includes(symbol));
+  const symbols = exchangeInfo.symbols.filter(({ symbol }) => Object.keys(input).includes(symbol));
   const configs = symbols.map(({ symbol, baseAsset, quoteAsset, filters }) => {
     const { tickSize } = filters.find((filter) => filter.filterType === "PRICE_FILTER") as SymbolPriceFilter;
     const { stepSize } = filters.find((filter) => filter.filterType === "LOT_SIZE") as SymbolLotSizeFilter;
-    const { quoteOrderQty, takeProfit, accumulationOrders, martingale } = event[symbol];
+    const { quoteOrderQty, takeProfit, accumulationOrders, martingale } = input[symbol];
     return {
       symbol,
       price: +prices[symbol],

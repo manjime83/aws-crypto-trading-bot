@@ -1,10 +1,7 @@
 import { handler } from "./index";
 
 handler(
-  {
-    BTCUSDT: { quoteOrderQty: 10, takeProfit: 5, accumulationOrders: 5, martingale: 5 },
-    ETHBTC: { quoteOrderQty: 0.0002, takeProfit: 3, accumulationOrders: 24, martingale: 2 },
-  },
+  { configUrl: "https://api.npoint.io/f997c6367160911bf966" },
   {
     callbackWaitsForEmptyEventLoop: true,
     succeed: () => {},
