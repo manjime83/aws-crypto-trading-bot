@@ -3,7 +3,7 @@ import * as AWS from "aws-sdk";
 import * as ccxt from "ccxt";
 
 const sm = new AWS.SecretsManager();
-const ses = new AWS.SESV2();
+const ses = new AWS.SESV2(); // cambiar ses por SNS
 
 let coldstart = true;
 let config: { apiKey: string; secret: string };

@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ApiKey:
+    Type: String
+  ApiSecret:
+    Type: String
+    NoEcho: true
+  NotificationEmail:
+    Type: String
+  EventInput:
+    Type: String
+
+Resources:
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${AWS::StackName}
+      SecretString: !Sub '{ "key": "${ApiKey}", "secret": "${ApiSecret}" }'
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWS::StackName}
+      Subscription:
+        - Endpoint: !Ref NotificationEmail
+          Protocol: email
+
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: symbol
+          AttributeType: S
+      KeySchema:
+        - AttributeName: symbol
+          KeyType: HASH
+
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub ${AWS::StackName}
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref Secret
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Ref Topic
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource:
+                  - !GetAtt Table.Arn
+
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref AWS::StackName
+      Handler: index.handler
+      Runtime: nodejs12.x
+      Role: !GetAtt Role.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log(event);
+
+            return {
+              statusCode: 501,
+              headers: { 'content-type': 'text/plain' },
+              body: 'The server does not support the functionality required to fulfill the request.',
+            };
+          };
+      Environment:
+        Variables:
+          SECRET_ARN: !Ref Secret
+          TOPIC_ARN: !Ref Topic
+          TABLE_NAME: !Ref Table
+      Timeout: 30
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ["/", ["", aws, lambda, !Ref Function]]
+      RetentionInDays: 30
+
+  Rule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${AWS::StackName}
+      ScheduleExpression: cron(0 */6 * * ? *)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt Function.Arn
+          Id: Function
+          Input: !Ref EventInput
+
+  Permission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt Rule.Arn
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt Function.Arn
+
+Outputs:
+  Secret:
+    Value: !Ref Secret
+  Topic:
+    Value: !Ref Topic
+  Table:
+    Value: !GetAtt Table.Arn
