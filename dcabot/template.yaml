@@ -72,6 +72,7 @@ Resources:
                 Action:
                   - dynamodb:GetItem
                   - dynamodb:PutItem
+                  - dynamodb:DeleteItem
                 Resource:
                   - !GetAtt Table.Arn
 

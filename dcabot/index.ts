@@ -27,6 +27,7 @@ interface SymbolConfig {
   takeProfit: number;
   accumulationOrders: number;
   martingale: number;
+  interrupt: boolean;
 }
 
 const dca = async ({
@@ -40,6 +41,7 @@ const dca = async ({
   takeProfit,
   accumulationOrders,
   martingale,
+  interrupt,
 }: SymbolConfig) => {
   const binance = await binancePromise;
 
@@ -64,6 +66,12 @@ const dca = async ({
           })
           .promise();
 
+        if (interrupt) {
+          console.log(symbol, `bot is interrpted and will not start new trades`);
+          await dc.delete({ TableName: TABLE_NAME!, Key: { symbol } }).promise();
+          return;
+        }
+
         Item = { executedQty: 0, takeProfitOrderId: 0, cummulativeQuoteQty: 0, numOrders: 0, symbol };
       }
     } catch (error) {
@@ -79,6 +87,11 @@ const dca = async ({
           })
           .promise();
       }
+    }
+  } else {
+    if (interrupt) {
+      console.log(symbol, `bot is interrpted and will not start new trades`);
+      return;
     }
   }
 
@@ -159,6 +172,7 @@ export const handler: Handler<{
       takeProfit: number;
       accumulationOrders: number;
       martingale: number;
+      interrupt: boolean;
     };
   } = (await axios.get(event.configUrl)).data;
 
@@ -169,7 +183,7 @@ export const handler: Handler<{
   const configs = symbols.map(({ symbol, baseAsset, quoteAsset, filters }) => {
     const { tickSize } = filters.find((filter) => filter.filterType === "PRICE_FILTER") as SymbolPriceFilter;
     const { stepSize } = filters.find((filter) => filter.filterType === "LOT_SIZE") as SymbolLotSizeFilter;
-    const { quoteOrderQty, takeProfit, accumulationOrders, martingale } = input[symbol];
+    const { quoteOrderQty, takeProfit, accumulationOrders, martingale, interrupt } = input[symbol];
     return {
       symbol,
       price: +prices[symbol],
@@ -181,10 +195,13 @@ export const handler: Handler<{
       takeProfit,
       accumulationOrders,
       martingale,
+      interrupt,
     } as SymbolConfig;
   });
 
-  console.log("configuration:", JSON.stringify(configs));
+  console.log(JSON.stringify(configs));
 
-  await Promise.all(configs.map((config) => dca(config)));
+  for (const config of configs) {
+    await dca(config);
+  }
 };
