@@ -67,7 +67,7 @@ const dca = async ({
           .promise();
 
         if (interrupt) {
-          console.log(symbol, `bot is interrpted and will not start new trades`);
+          console.log(symbol, "bot is interrupted and will not start new trades");
           await dc.delete({ TableName: TABLE_NAME!, Key: { symbol } }).promise();
           return;
         }
@@ -90,7 +90,7 @@ const dca = async ({
     }
   } else {
     if (interrupt) {
-      console.log(symbol, `bot is interrpted and will not start new trades`);
+      console.log(symbol, "bot is interrupted and will not start new trades");
       return;
     }
   }
@@ -98,7 +98,7 @@ const dca = async ({
   if (accumulationOrders <= Item.numOrders) {
     const averagePrice = new Decimal(Item.cummulativeQuoteQty).div(Item.executedQty).toNearest(priceTickSize);
     if (averagePrice.gt(price)) {
-      quoteOrderQty = new Decimal(quoteOrderQty).times(martingale).toNearest(priceTickSize).toNumber();
+      quoteOrderQty = new Decimal(Item.cummulativeQuoteQty).times(martingale).toNearest(priceTickSize).toNumber();
       console.log(
         symbol,
         "accumulation period has expired and current price is below average, applying martingale. current price:",

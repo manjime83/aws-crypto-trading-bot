@@ -19,15 +19,15 @@
   "homepage": "https://github.com/manjime83/dcabot#readme",
   "devDependencies": {
     "@types/aws-lambda": "^8.10.75",
-    "@types/node": "^14.14.37",
-    "aws-sdk": "^2.884.0",
+    "@types/node": "^14.14.41",
+    "aws-sdk": "^2.888.0",
     "dotenv": "^8.2.0",
     "ts-node": "^9.1.1",
     "typescript": "^4.2.4"
   },
   "dependencies": {
     "axios": "^0.21.1",
-    "binance-api-node": "^0.10.37",
+    "binance-api-node": "^0.10.39",
     "decimal.js": "^10.2.1"
   }
 }
