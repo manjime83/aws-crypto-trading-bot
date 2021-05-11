@@ -42,12 +42,10 @@ const buyTheDip = async ({ id: deal_id, to_currency, from_currency }: DealType) 
   const symbol = to_currency.concat(from_currency);
   const oversold = (await isOversold(symbol)) || TEST_MODE! === "true";
   if (oversold) {
-    const dealSafetyOrders: [SafetyOrderType] = await api.getDealSafetyOrders(deal_id);
-    const lastFilledSafetyOrder = dealSafetyOrders
+    const safetyOrders: [SafetyOrderType] = await api.getDealSafetyOrders(deal_id);
+    const lastFilledSafetyOrder = safetyOrders
       .filter((so) => ["Base", "Safety", "Manual Safety"].includes(so.deal_order_type) && so.status_string === "Filled")
-      .reduce((previousValue, currentValue) =>
-        new Date(previousValue.updated_at) > new Date(currentValue.updated_at) ? previousValue : currentValue
-      );
+      .reduce((prevSO, currSO) => (new Date(prevSO.updated_at) > new Date(currSO.updated_at) ? prevSO : currSO));
     const order = await api.dealAddFunds({
       quantity: +lastFilledSafetyOrder.quantity,
       is_market: true,
