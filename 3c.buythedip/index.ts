@@ -34,6 +34,7 @@ const isOversold = async (symbol: string) => {
   const candles = await binance.candles({ symbol, interval: CandleChartInterval.ONE_MINUTE });
   const rsi = RSI.calculate({ values: candles.map((candle) => +candle.close), period: +RSI_PERIOD! });
   const crossUp = CrossUp.calculate({ lineA: rsi, lineB: new Array(rsi.length).fill(+RSI_OVERSOLD!) });
+  console.debug(symbol, JSON.stringify(rsi.slice(-10)), JSON.stringify(crossUp.slice(-10)));
   return crossUp[crossUp.length - 1];
 };
 
@@ -64,8 +65,8 @@ export const handler: Handler<{}> = async () => {
   if (Array.isArray(deals) && deals.length > 0) {
     const orders = await Promise.all(
       (TEST_MODE! === "true"
-        ? deals.filter((deal) => +deal.actual_profit_percentage > 0).slice(-1)
-        : deals.filter((deal) => +deal.actual_profit_percentage > 0)
+        ? deals.filter((deal) => +deal.actual_profit_percentage < 0).slice(-1)
+        : deals.filter((deal) => +deal.actual_profit_percentage < 0)
       ).map((deal) => buyTheDip(deal))
     );
     orders
