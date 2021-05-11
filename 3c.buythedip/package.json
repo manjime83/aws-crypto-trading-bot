@@ -1,5 +1,5 @@
 {
-  "name": "3c.buythedip",
+  "name": "threecommas-buythedip",
   "version": "1.0.0",
   "description": "3commas buy the dip bot",
   "main": "index.js",
@@ -20,7 +20,7 @@
   "devDependencies": {
     "@types/aws-lambda": "^8.10.76",
     "@types/node": "^15.0.2",
-    "aws-sdk": "^2.904.0",
+    "aws-sdk": "^2.905.0",
     "dotenv": "^9.0.2",
     "ts-node": "^9.1.1",
     "typescript": "^4.2.4"

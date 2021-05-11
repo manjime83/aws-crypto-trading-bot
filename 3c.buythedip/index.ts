@@ -37,10 +37,10 @@ const isOversold = async (symbol: string) => {
   return crossUp[crossUp.length - 1];
 };
 
-const buyTheDip = async ({ id: deal_id, to_currency, from_currency, actual_profit_percentage }: DealType) => {
+const buyTheDip = async ({ id: deal_id, to_currency, from_currency }: DealType) => {
   const symbol = to_currency.concat(from_currency);
   const oversold = (await isOversold(symbol)) || TEST_MODE! === "true";
-  if (oversold && +actual_profit_percentage < 0) {
+  if (oversold) {
     const dealSafetyOrders: [SafetyOrderType] = await api.getDealSafetyOrders(deal_id);
     const lastFilledSafetyOrder = dealSafetyOrders
       .filter((so) => ["Base", "Safety", "Manual Safety"].includes(so.deal_order_type) && so.status_string === "Filled")
@@ -62,16 +62,21 @@ const buyTheDip = async ({ id: deal_id, to_currency, from_currency, actual_profi
 export const handler: Handler<{}> = async () => {
   const deals: [DealType] = await api.getDeals({ scope: "active" });
   if (Array.isArray(deals) && deals.length > 0) {
-    const orders = await Promise.all((TEST_MODE! === "true" ? deals.slice(-1) : deals).map((deal) => buyTheDip(deal)));
+    const orders = await Promise.all(
+      (TEST_MODE! === "true"
+        ? deals.filter((deal) => +deal.actual_profit_percentage > 0).slice(-1)
+        : deals.filter((deal) => +deal.actual_profit_percentage > 0)
+      ).map((deal) => buyTheDip(deal))
+    );
     orders
       .filter((order) => order !== undefined)
       .forEach((order) =>
         console.info(
-          `Manual safety order placed (${order!.order_id}). Market Rate: ${
-            order!.average_price
-          } ${order!.to_currency.concat(order!.from_currency)}, Amount: ${order!.quantity} ${
-            order!.to_currency
-          }, Volume: ${order!.total} ${order!.from_currency}. https://3commas.io/deals/${order!.deal_id}`
+          `Manual safety order placed (${order!.order_id}). Rate: ${order!.average_price} ${order!.to_currency.concat(
+            order!.from_currency
+          )}, Amount: ${order!.quantity} ${order!.to_currency}, Volume: ${order!.total} ${
+            order!.from_currency
+          }. https://3commas.io/deals/${order!.deal_id}`
         )
       );
   }
