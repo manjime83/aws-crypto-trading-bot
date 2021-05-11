@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ApiKey:
+    Type: String
+  ApiSecret:
+    Type: String
+    NoEcho: true
+  RsiPeriod:
+    Type: String
+  RsiOversold:
+    Type: String
+
+Resources:
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref AWS::StackName
+      Handler: index.handler
+      Runtime: nodejs12.x
+      Role: !GetAtt Role.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log(event);
+
+            return {
+              statusCode: 501,
+              headers: { 'content-type': 'text/plain' },
+              body: 'The server does not support the functionality required to fulfill the request.',
+            };
+          };
+      Environment:
+        Variables:
+          APIKEY: !Ref ApiKey
+          SECRET: !Ref ApiSecret
+          TEST_MODE: false
+          RSI_PERIOD: !Ref RsiPeriod
+          RSI_OVERSOLD: !Ref RsiOversold
+      Timeout: 60
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ["/", ["", aws, lambda, !Ref Function]]
+      RetentionInDays: 1
+
+  Rule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${AWS::StackName}
+      ScheduleExpression: rate(1 minute)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt Function.Arn
+          Id: Function
+
+  Permission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt Rule.Arn
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt Function.Arn
+
+Outputs:
+  Function:
+    Value: !GetAtt Function.Arn

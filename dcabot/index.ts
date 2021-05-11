@@ -45,9 +45,16 @@ const dca = async ({
 }: SymbolConfig) => {
   const binance = await binancePromise;
 
-  let { Item = { executedQty: 0, takeProfitOrderId: 0, cummulativeQuoteQty: 0, numOrders: 0, symbol } } = await dc
-    .get({ TableName: TABLE_NAME!, Key: { symbol } })
-    .promise();
+  let {
+    Item = {
+      averagePrice: Number.POSITIVE_INFINITY,
+      executedQty: 0,
+      takeProfitOrderId: 0,
+      cummulativeQuoteQty: 0,
+      numOrders: 0,
+      symbol,
+    },
+  } = await dc.get({ TableName: TABLE_NAME!, Key: { symbol } }).promise();
 
   if (Item.takeProfitOrderId) {
     try {
@@ -60,6 +67,8 @@ const dca = async ({
             Subject: `Orden cerrada ${takeProfitOrder.status}`,
             Message: `Se vendio ${takeProfitOrder.executedQty} ${baseAsset} en ${
               takeProfitOrder.cummulativeQuoteQty
+            } ${quoteAsset}, se compro a un precio promedio de ${
+              Item.averagePrice
             } ${quoteAsset}, La ganancia fue de ${new Decimal(takeProfitOrder.cummulativeQuoteQty).minus(
               Item.cummulativeQuoteQty
             )} ${quoteAsset} \n ${JSON.stringify(takeProfitOrder)}`,
@@ -136,10 +145,13 @@ const dca = async ({
       Item.numOrders += 1;
       Item.executedQty = new Decimal(order.executedQty).plus(Item.executedQty).toNumber();
       Item.cummulativeQuoteQty = new Decimal(order.cummulativeQuoteQty).plus(Item.cummulativeQuoteQty).toNumber();
+      Item.averagePrice = new Decimal(Item.cummulativeQuoteQty)
+        .div(Item.executedQty)
+        .toNearest(priceTickSize)
+        .toNumber();
     }
 
-    const targetPrice = new Decimal(Item.cummulativeQuoteQty)
-      .div(Item.executedQty)
+    const targetPrice = new Decimal(Item.averagePrice)
       .times(new Decimal(takeProfit).div(100).plus(1))
       .toNearest(priceTickSize)
       .toString();

@@ -1,0 +1,33 @@
+{
+  "name": "3c.buythedip",
+  "version": "1.0.0",
+  "description": "3commas buy the dip bot",
+  "main": "index.js",
+  "scripts": {
+    "test": "ts-node -r dotenv/config test.ts",
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/manjime83/buythedip.git"
+  },
+  "author": "Manuel Jiménez <man.jime@mail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/manjime83/buythedip/issues"
+  },
+  "homepage": "https://github.com/manjime83/buythedip#readme",
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.76",
+    "@types/node": "^15.0.2",
+    "aws-sdk": "^2.904.0",
+    "dotenv": "^9.0.2",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.2.4"
+  },
+  "dependencies": {
+    "3commas-api-node": "^1.0.9",
+    "binance-api-node": "^0.10.42",
+    "technicalindicators": "^3.1.0"
+  }
+}
