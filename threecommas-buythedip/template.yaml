@@ -50,7 +50,6 @@ Resources:
         Variables:
           APIKEY: !Ref ApiKey
           SECRET: !Ref ApiSecret
-          TEST_MODE: false
           RSI_PERIOD: !Ref RsiPeriod
           RSI_OVERSOLD: !Ref RsiOversold
       Timeout: 60
