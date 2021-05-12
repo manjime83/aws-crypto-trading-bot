@@ -36,6 +36,7 @@ const isOversold = async (symbol: string) => {
   const candles = await binance.candles({ symbol, interval: CandleChartInterval.FIVE_MINUTES });
   const rsi = RSI.calculate({ values: candles.map((candle) => +candle.close), period: +RSI_PERIOD! });
   const crossUp = CrossUp.calculate({ lineA: rsi, lineB: new Array(rsi.length).fill(+RSI_OVERSOLD!) });
+  console.debug(symbol, JSON.stringify(rsi.slice(-10)), JSON.stringify(crossUp.slice(-10)));
   return crossUp[crossUp.length - 1];
 };
 
@@ -81,7 +82,7 @@ export const handler: Handler<{}> = async () => {
             }. https://3commas.io/deals/${order!.deal_id}`
           );
         } else {
-          console.info(
+          console.error(
             `Error placing safety order (${order!.to_currency.concat(order!.from_currency)}). ${
               order!.error_description
             }. https://3commas.io/deals/${order!.deal_id}`
