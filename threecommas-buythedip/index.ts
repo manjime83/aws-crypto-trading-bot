@@ -44,20 +44,23 @@ const TEN_MINUTES = 10 * 60 * 1000;
 
 const buyTheDip = async ({ id: deal_id, to_currency, from_currency }: DealType) => {
   const safetyOrders: [SafetyOrderType] = await api.getDealSafetyOrders(deal_id);
-  const lastFilledSafetyOrder = safetyOrders
-    .filter((so) => ["Base", "Safety", "Manual Safety"].includes(so.deal_order_type) && so.status_string === "Filled")
-    .reduce((prev, curr) => (Date.parse(prev.updated_at) > Date.parse(curr.updated_at) ? prev : curr));
 
-  if (Date.now() - Date.parse(lastFilledSafetyOrder.updated_at) > TEN_MINUTES) {
-    const symbol = to_currency.concat(from_currency);
-    if (await isOversold(symbol)) {
-      const order = await api.dealAddFunds({
-        quantity: +lastFilledSafetyOrder.quantity,
-        is_market: true,
-        response_type: "market_order",
-        deal_id,
-      });
-      return { ...order, deal_id, to_currency, from_currency } as ResponseType;
+  if (Array.isArray(safetyOrders)) {
+    const lastFilledSafetyOrder = safetyOrders
+      .filter((so) => ["Base", "Safety", "Manual Safety"].includes(so.deal_order_type) && so.status_string === "Filled")
+      .reduce((prev, curr) => (Date.parse(prev.updated_at) > Date.parse(curr.updated_at) ? prev : curr));
+
+    if (Date.now() - Date.parse(lastFilledSafetyOrder.updated_at) > TEN_MINUTES) {
+      const symbol = to_currency.concat(from_currency);
+      if (await isOversold(symbol)) {
+        const order = await api.dealAddFunds({
+          quantity: +lastFilledSafetyOrder.quantity,
+          is_market: true,
+          response_type: "market_order",
+          deal_id,
+        });
+        return { ...order, deal_id, to_currency, from_currency } as ResponseType;
+      }
     }
   }
 
@@ -66,10 +69,12 @@ const buyTheDip = async ({ id: deal_id, to_currency, from_currency }: DealType) 
 
 export const handler: Handler<{}> = async () => {
   const deals: [DealType] = await api.getDeals({ scope: "active" });
-  if (Array.isArray(deals) && deals.length > 0) {
+
+  if (Array.isArray(deals)) {
     const orders = await Promise.all(
       deals.filter((deal) => +deal.actual_profit_percentage < 0).map((deal) => buyTheDip(deal))
     );
+
     orders
       .filter((order) => order !== undefined)
       .forEach((order) => {
@@ -93,8 +98,5 @@ export const handler: Handler<{}> = async () => {
 };
 
 /* CloudWatch Logs Insights query
-filter @message like /3commas.io/
-| fields @timestamp, @message
-| sort @timestamp desc
-| limit 100
+filter @message like /3commas.io/ | fields @timestamp, @message | sort @timestamp desc | limit 100
 */
