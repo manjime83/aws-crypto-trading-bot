@@ -96,5 +96,19 @@
     "total": "25.06000391725",
     "rate": "0.043399",
     "average_price": "0.043399"
+  },
+  {
+    "order_id": "XVSUSDT_179500176",
+    "order_type": "BUY",
+    "deal_order_type": "Safety",
+    "cancellable": false,
+    "status_string": "Filled",
+    "created_at": "2021-05-12T17:33:15.309Z",
+    "updated_at": "2021-05-12T18:01:14.027Z",
+    "quantity": "0.669",
+    "quantity_remaining": "0.0",
+    "total": "80.5932816615",
+    "rate": "120.378",
+    "average_price": "120.378"
   }
 ]
