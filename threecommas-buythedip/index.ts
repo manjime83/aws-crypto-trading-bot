@@ -10,7 +10,7 @@ const { APIKEY, SECRET, RSI_PERIOD, RSI_OVERSOLD } = process.env;
 const api = new threecommas_api_node_1({ apiKey: APIKEY!, apiSecret: SECRET! });
 const binance = Binance();
 
-const isOversold = async (symbol: string) => {
+const oversold = async (symbol: string) => {
   try {
     const candles = await binance.candles({ symbol, interval: CandleChartInterval.FIVE_MINUTES });
     const rsi = RSI.calculate({ values: candles.map((candle) => +candle.close), period: +RSI_PERIOD! });
@@ -22,7 +22,7 @@ const isOversold = async (symbol: string) => {
   }
 };
 
-const TEN_MINUTES = 10 * 60 * 1000;
+const COOLDOWN_PERIOD = 10 * 60 * 1000;
 
 const buyTheDip = async (deal: DealType) => {
   const dealSafetyOrders: [OrderType] = await api.getDealSafetyOrders(deal.id);
@@ -37,8 +37,8 @@ const buyTheDip = async (deal: DealType) => {
 
     if (
       +lastOrder.average_price > +deal.current_price &&
-      Date.now() - Date.parse(lastOrder.updated_at) > TEN_MINUTES &&
-      (await isOversold(deal.to_currency.concat(deal.from_currency)))
+      Date.now() - Date.parse(lastOrder.updated_at) > COOLDOWN_PERIOD &&
+      (await oversold(deal.to_currency.concat(deal.from_currency)))
     ) {
       const totalQuantity = filledOrders.reduce((prev, curr) => prev.add(new Big(curr.quantity)), new Big("0"));
       const order = await api.dealAddFunds({
