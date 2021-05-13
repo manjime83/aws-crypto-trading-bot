@@ -1,21 +1,25 @@
 import { Handler } from "aws-lambda";
-const threeCommasAPI = require("3commas-api-node");
+const threecommas_api_node_1 = require("3commas-api-node");
 import Binance, { CandleChartInterval } from "binance-api-node";
 import { RSI, CrossUp } from "technicalindicators";
-// import Big from "big.js";
+import Big from "big.js";
 
 import { DealType, OrderType, SafetyOrderType } from "./types";
 
 const { APIKEY, SECRET, RSI_PERIOD, RSI_OVERSOLD } = process.env;
-const api = new threeCommasAPI({ apiKey: APIKEY!, apiSecret: SECRET! });
+const api = new threecommas_api_node_1({ apiKey: APIKEY!, apiSecret: SECRET! });
 const binance = Binance();
 
 const isOversold = async (symbol: string) => {
-  const candles = await binance.candles({ symbol, interval: CandleChartInterval.FIVE_MINUTES });
-  const rsi = RSI.calculate({ values: candles.map((candle) => +candle.close), period: +RSI_PERIOD! });
-  const crossUp = CrossUp.calculate({ lineA: rsi, lineB: new Array(rsi.length).fill(+RSI_OVERSOLD!) });
-  // console.debug(symbol, JSON.stringify(rsi.slice(-10)), JSON.stringify(crossUp.slice(-10)));
-  return crossUp[crossUp.length - 1];
+  try {
+    const candles = await binance.candles({ symbol, interval: CandleChartInterval.FIVE_MINUTES });
+    const rsi = RSI.calculate({ values: candles.map((candle) => +candle.close), period: +RSI_PERIOD! });
+    const crossUp = CrossUp.calculate({ lineA: rsi, lineB: new Array(rsi.length).fill(+RSI_OVERSOLD!) });
+    return crossUp[crossUp.length - 1];
+  } catch (e) {
+    console.error(e.message);
+    return false;
+  }
 };
 
 const TEN_MINUTES = 10 * 60 * 1000;
@@ -24,23 +28,27 @@ const buyTheDip = async (deal: DealType) => {
   const dealSafetyOrders: [OrderType] = await api.getDealSafetyOrders(deal.id);
 
   if (dealSafetyOrders) {
-    const lastFilledSafetyOrder = dealSafetyOrders
-      .filter((so) => ["Base", "Manual Safety"].includes(so.deal_order_type) && so.status_string === "Filled")
-      .reduce((prev, curr) => (Date.parse(prev.updated_at) > Date.parse(curr.updated_at) ? prev : curr));
+    const filledOrders = dealSafetyOrders.filter(
+      (order) => ["Base", "Manual Safety"].includes(order.deal_order_type) && order.status_string === "Filled"
+    );
+    const lastOrder = filledOrders.reduce((prev, curr) =>
+      Date.parse(prev.updated_at) > Date.parse(curr.updated_at) ? prev : curr
+    );
 
-    console.info(deal, lastFilledSafetyOrder);
+    if (
+      +lastOrder.average_price > +deal.current_price &&
+      Date.now() - Date.parse(lastOrder.updated_at) > TEN_MINUTES &&
+      (await isOversold(deal.to_currency.concat(deal.from_currency)))
+    ) {
+      const totalQuantity = filledOrders.reduce((prev, curr) => prev.add(new Big(curr.quantity)), new Big("0"));
+      const order = await api.dealAddFunds({
+        quantity: totalQuantity.toNumber(),
+        is_market: true,
+        response_type: "market_order",
+        deal_id: deal.id,
+      });
 
-    if (Date.now() - Date.parse(lastFilledSafetyOrder.updated_at) > TEN_MINUTES) {
-      const symbol = deal.to_currency.concat(deal.from_currency);
-      if (await isOversold(symbol)) {
-        const order = await api.dealAddFunds({
-          quantity: +lastFilledSafetyOrder.quantity,
-          is_market: true,
-          response_type: "market_order",
-          deal_id: deal.id,
-        });
-        return { deal, order } as SafetyOrderType;
-      }
+      return { deal, order } as SafetyOrderType;
     }
   }
 
