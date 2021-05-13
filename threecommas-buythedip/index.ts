@@ -27,20 +27,19 @@ const buyTheDip = async (deal: DealType) => {
   if (!dealSafetyOrders) return undefined;
 
   const deviation = new Big(deal.martingale_step_coefficient).eq(1)
-    ? new Big(deal.safety_order_step_percentage)
+    ? new Big(deal.safety_order_step_percentage).times(deal.completed_manual_safety_orders_count)
     : new Big(deal.safety_order_step_percentage)
         .times(new Big(deal.martingale_step_coefficient).pow(deal.completed_manual_safety_orders_count).minus(1))
         .div(new Big(deal.martingale_step_coefficient).minus(1));
-  const nextStepOrderPrice = new Big(deal.base_order_average_price).times(new Big(100).minus(deviation).div(100));
-  console.debug(deal.to_currency.concat(deal.from_currency), deviation.toString(), nextStepOrderPrice.toString());
+  const maxBuyPrice = new Big(deal.base_order_average_price).times(new Big(100).minus(deviation).div(100));
+  console.debug(deal.to_currency.concat(deal.from_currency), deviation.toString(), maxBuyPrice.toString());
 
-  if (nextStepOrderPrice.lt(new Big(deal.current_price))) return undefined;
-
-  if (!(await oversold(deal.to_currency.concat(deal.from_currency)))) return undefined;
+  if (maxBuyPrice.lt(deal.current_price) || !(await oversold(deal.to_currency.concat(deal.from_currency))))
+    return undefined;
 
   const totalQuantity = dealSafetyOrders
     .filter((order) => ["Base", "Manual Safety"].includes(order.deal_order_type) && order.status_string === "Filled")
-    .reduce((prev, curr) => prev.add(new Big(curr.quantity)), new Big("0"));
+    .reduce((prev, curr) => prev.add(curr.quantity), new Big("0"));
 
   const order = await api.dealAddFunds({
     quantity: totalQuantity.toNumber(),
