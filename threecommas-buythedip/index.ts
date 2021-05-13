@@ -22,37 +22,34 @@ const oversold = async (symbol: string) => {
   }
 };
 
-const COOLDOWN_PERIOD = 10 * 60 * 1000;
-
 const buyTheDip = async (deal: DealType) => {
   const dealSafetyOrders: [OrderType] = await api.getDealSafetyOrders(deal.id);
+  if (!dealSafetyOrders) return undefined;
 
-  if (dealSafetyOrders) {
-    const filledOrders = dealSafetyOrders.filter(
-      (order) => ["Base", "Manual Safety"].includes(order.deal_order_type) && order.status_string === "Filled"
-    );
-    const lastOrder = filledOrders.reduce((prev, curr) =>
-      Date.parse(prev.updated_at) > Date.parse(curr.updated_at) ? prev : curr
-    );
+  const deviation = new Big(deal.martingale_step_coefficient).eq(1)
+    ? new Big(deal.safety_order_step_percentage)
+    : new Big(deal.safety_order_step_percentage)
+        .times(new Big(deal.martingale_step_coefficient).pow(deal.completed_manual_safety_orders_count).minus(1))
+        .div(new Big(deal.martingale_step_coefficient).minus(1));
+  const nextStepOrderPrice = new Big(deal.base_order_average_price).times(new Big(100).minus(deviation).div(100));
+  console.debug(deal.to_currency.concat(deal.from_currency), deviation.toString(), nextStepOrderPrice.toString());
 
-    if (
-      +lastOrder.average_price > +deal.current_price &&
-      Date.now() - Date.parse(lastOrder.updated_at) > COOLDOWN_PERIOD &&
-      (await oversold(deal.to_currency.concat(deal.from_currency)))
-    ) {
-      const totalQuantity = filledOrders.reduce((prev, curr) => prev.add(new Big(curr.quantity)), new Big("0"));
-      const order = await api.dealAddFunds({
-        quantity: totalQuantity.toNumber(),
-        is_market: true,
-        response_type: "market_order",
-        deal_id: deal.id,
-      });
+  if (nextStepOrderPrice.lt(new Big(deal.current_price))) return undefined;
 
-      return { deal, order } as SafetyOrderType;
-    }
-  }
+  if (!(await oversold(deal.to_currency.concat(deal.from_currency)))) return undefined;
 
-  return undefined;
+  const totalQuantity = dealSafetyOrders
+    .filter((order) => ["Base", "Manual Safety"].includes(order.deal_order_type) && order.status_string === "Filled")
+    .reduce((prev, curr) => prev.add(new Big(curr.quantity)), new Big("0"));
+
+  const order = await api.dealAddFunds({
+    quantity: totalQuantity.toNumber(),
+    is_market: true,
+    response_type: "market_order",
+    deal_id: deal.id,
+  });
+
+  return { deal, order } as SafetyOrderType;
 };
 
 export const handler: Handler<{}> = async () => {
@@ -60,7 +57,12 @@ export const handler: Handler<{}> = async () => {
 
   if (deals) {
     const orders = await Promise.all(
-      deals.filter((deal) => +deal.actual_profit_percentage < 0).map((deal) => buyTheDip(deal))
+      deals
+        .filter(
+          (deal) =>
+            +deal.actual_profit_percentage < 0 && +deal.completed_manual_safety_orders_count < +deal.max_safety_orders
+        )
+        .map((deal) => buyTheDip(deal))
     );
 
     (orders.filter((order) => order !== undefined) as [SafetyOrderType]).forEach(({ deal, order }) => {
