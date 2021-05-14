@@ -30,10 +30,6 @@ const buyTheDip = async (deal: DealType) => {
         .div(new Big(deal.martingale_step_coefficient).minus(1));
   const maxBuyPrice = new Big(deal.base_order_average_price).times(new Big(100).minus(deviation).div(100));
 
-  const totalQuantity =
-    deal.completed_manual_safety_orders_count < deal.max_safety_orders
-      ? new Big(2).pow(deal.completed_manual_safety_orders_count).times(deal.safety_order_volume)
-      : new Big(deal.safety_order_volume);
   // const totalQuantity = new Big(2)
   //   .pow(Math.min(deal.completed_manual_safety_orders_count, deal.max_safety_orders))
   //   .times(deal.safety_order_volume);
@@ -43,14 +39,14 @@ const buyTheDip = async (deal: DealType) => {
     deal.completed_manual_safety_orders_count,
     deviation.toString(),
     maxBuyPrice.toString(),
-    totalQuantity.toNumber()
+    +deal.bought_amount
   );
 
   if (maxBuyPrice.lt(deal.current_price) || !(await oversold(deal.to_currency.concat(deal.from_currency))))
     return undefined;
 
   const order = await api.dealAddFunds({
-    quantity: totalQuantity.toNumber(),
+    quantity: +deal.bought_amount,
     is_market: true,
     response_type: "market_order",
     deal_id: deal.id,
