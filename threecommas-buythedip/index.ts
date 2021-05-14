@@ -4,7 +4,7 @@ import Binance, { CandleChartInterval } from "binance-api-node";
 import { RSI, CrossUp } from "technicalindicators";
 import Big from "big.js";
 
-import { DealType, OrderType, SafetyOrderType } from "./types";
+import { DealType, SafetyOrderType } from "./types";
 
 const { APIKEY, SECRET, RSI_PERIOD, RSI_OVERSOLD } = process.env;
 const api = new threecommas_api_node_1({ apiKey: APIKEY!, apiSecret: SECRET! });
@@ -29,22 +29,25 @@ const buyTheDip = async (deal: DealType) => {
         .times(new Big(deal.martingale_step_coefficient).pow(deal.completed_manual_safety_orders_count + 1).minus(1))
         .div(new Big(deal.martingale_step_coefficient).minus(1));
   const maxBuyPrice = new Big(deal.base_order_average_price).times(new Big(100).minus(deviation).div(100));
+
+  const totalQuantity =
+    deal.completed_manual_safety_orders_count < deal.max_safety_orders
+      ? new Big(2).pow(deal.completed_manual_safety_orders_count).times(deal.safety_order_volume)
+      : new Big(deal.safety_order_volume);
+  // const totalQuantity = new Big(2)
+  //   .pow(Math.min(deal.completed_manual_safety_orders_count, deal.max_safety_orders))
+  //   .times(deal.safety_order_volume);
+
   console.debug(
     deal.to_currency.concat(deal.from_currency),
     deal.completed_manual_safety_orders_count,
     deviation.toString(),
-    maxBuyPrice.toString()
+    maxBuyPrice.toString(),
+    totalQuantity.toNumber()
   );
 
   if (maxBuyPrice.lt(deal.current_price) || !(await oversold(deal.to_currency.concat(deal.from_currency))))
     return undefined;
-
-  const dealSafetyOrders: [OrderType] = await api.getDealSafetyOrders(deal.id);
-  if (!dealSafetyOrders) return undefined;
-
-  const totalQuantity = dealSafetyOrders
-    .filter((order) => ["Base", "Manual Safety"].includes(order.deal_order_type) && order.status_string === "Filled")
-    .reduce((prev, curr) => prev.plus(curr.quantity), new Big("0"));
 
   const order = await api.dealAddFunds({
     quantity: totalQuantity.toNumber(),
@@ -61,12 +64,7 @@ export const handler: Handler<{}> = async () => {
 
   if (deals) {
     const orders = await Promise.all(
-      deals
-        .filter(
-          (deal) =>
-            +deal.actual_profit_percentage < 0 && deal.completed_manual_safety_orders_count < deal.max_safety_orders
-        )
-        .map((deal) => buyTheDip(deal))
+      deals.filter((deal) => +deal.actual_profit_percentage < 0).map((deal) => buyTheDip(deal))
     );
 
     (orders.filter((order) => order !== undefined) as [SafetyOrderType]).forEach(({ deal, order }) => {
