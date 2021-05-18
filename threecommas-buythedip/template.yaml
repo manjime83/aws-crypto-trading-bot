@@ -6,9 +6,11 @@ Parameters:
   ApiSecret:
     Type: String
     NoEcho: true
-  RsiPeriod:
+  BBInterval:
     Type: String
-  RsiOversold:
+  BBPeriod:
+    Type: String
+  BBStdDev:
     Type: String
 
 Resources:
@@ -50,8 +52,9 @@ Resources:
         Variables:
           APIKEY: !Ref ApiKey
           SECRET: !Ref ApiSecret
-          RSI_PERIOD: !Ref RsiPeriod
-          RSI_OVERSOLD: !Ref RsiOversold
+          BB_INTERVAL: !Ref BBInterval
+          BB_PERIOD: !Ref BBPeriod
+          BB_STDDEV: !Ref BBStdDev
       Timeout: 60
 
   LogGroup:

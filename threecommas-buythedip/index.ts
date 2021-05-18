@@ -1,89 +1,56 @@
 import { Handler } from "aws-lambda";
 const threecommas_api_node_1 = require("3commas-api-node");
 import Binance, { CandleChartInterval } from "binance-api-node";
-import { RSI, CrossUp } from "technicalindicators";
+import { BollingerBands, CrossUp } from "technicalindicators";
 import Decimal from "decimal.js";
 
 import { DealType, OrderType, SafetyOrderType } from "./types";
 
-const { APIKEY, SECRET, RSI_PERIOD, RSI_OVERSOLD } = process.env;
+const { APIKEY, SECRET, BB_INTERVAL, BB_PERIOD, BB_STDDEV } = process.env;
 const api = new threecommas_api_node_1({ apiKey: APIKEY!, apiSecret: SECRET! });
 const binance = Binance();
 
-const oversold = async (symbol: string) => {
+const bb = async (symbol: string): Promise<[number, boolean]> => {
   try {
-    const candles = await binance.candles({ symbol, interval: CandleChartInterval.FIVE_MINUTES });
-    const rsi = RSI.calculate({ values: candles.map((candle) => +candle.close), period: +RSI_PERIOD! });
-    const crossUp = CrossUp.calculate({ lineA: rsi, lineB: new Array(rsi.length).fill(+RSI_OVERSOLD!) });
-    return crossUp[crossUp.length - 1];
+    const candles = await binance.candles({ symbol, interval: BB_INTERVAL! as CandleChartInterval });
+    const bollingerBands = BollingerBands.calculate({
+      period: +BB_PERIOD!,
+      stdDev: +BB_STDDEV!,
+      values: candles.map((candle) => +candle.close),
+    });
+    const crossUp = CrossUp.calculate({
+      lineA: bollingerBands.map((bollingerBand) => bollingerBand.pb),
+      lineB: new Array(bollingerBands.length).fill(-0.1),
+    });
+    return [bollingerBands[bollingerBands.length - 1].upper, crossUp[crossUp.length - 1]];
   } catch (e) {
     console.error(e.message);
-    return false;
+    throw [0, false];
   }
 };
-
-const TEN_MINUTES = 10 * 60 * 1000;
 
 const buyTheDip = async (deal: DealType) => {
   const orders = (await api.getDealSafetyOrders(deal.id)) as [OrderType];
   if (!orders) return undefined;
 
-  const manualOrders = orders.filter(
-    ({ deal_order_type, status_string }) =>
-      ["Base", "Manual Safety"].includes(deal_order_type) && status_string === "Filled"
+  const lastOrder = orders.reduce((prev, curr) =>
+    curr.status_string === "Filled" && Date.parse(curr.updated_at) > Date.parse(prev.updated_at) ? curr : prev
   );
-
-  // const baseOrder = manualOrders[manualOrders.length - 1];
-  const lastOrder = manualOrders[0];
-  const totalQuantity = manualOrders.reduce((prev, curr) => prev.plus(curr.quantity), new Decimal(0)).toNumber();
-
-  console.debug(
-    deal.to_currency.concat(deal.from_currency),
-    +deal.current_price > +lastOrder.average_price,
-    Date.now() - Date.parse(lastOrder.updated_at) < TEN_MINUTES,
-    totalQuantity
+  const deviation = new Decimal(deal.safety_order_step_percentage).times(
+    new Decimal(deal.martingale_step_coefficient).pow(deal.completed_safety_orders_count)
   );
+  const maxBuyPrice = new Decimal(100).minus(deviation).times(lastOrder.average_price).div(100).toNumber();
 
-  if (
-    +deal.current_price > +lastOrder.average_price ||
-    Date.now() - Date.parse(lastOrder.updated_at) < TEN_MINUTES ||
-    !(await oversold(deal.to_currency.concat(deal.from_currency)))
-  )
-    return undefined;
+  if (+deal.current_price > maxBuyPrice) return undefined;
 
+  const [highbb, cross] = await bb(deal.to_currency.concat(deal.from_currency));
+  console.log(deal.to_currency.concat(deal.from_currency), Math.min(maxBuyPrice, highbb), cross);
+
+  if (highbb > +lastOrder.average_price || !cross) return undefined;
+
+  const totalQuantity = new Decimal(+deal.bought_volume).times(2);
   const order = await api.dealAddFunds({
     quantity: totalQuantity,
-    is_market: true,
-    response_type: "market_order",
-    deal_id: deal.id,
-  });
-
-  return { deal, order } as SafetyOrderType;
-};
-
-const buyTheDipAngel = async (deal: DealType) => {
-  const deviation = new Decimal(deal.martingale_step_coefficient).eq(1)
-    ? new Decimal(deal.safety_order_step_percentage).times(deal.completed_manual_safety_orders_count + 1)
-    : new Decimal(deal.safety_order_step_percentage)
-        .times(
-          new Decimal(deal.martingale_step_coefficient).pow(deal.completed_manual_safety_orders_count + 1).minus(1)
-        )
-        .div(new Decimal(deal.martingale_step_coefficient).minus(1));
-  const maxBuyPrice = new Decimal(deal.base_order_average_price).times(new Decimal(100).minus(deviation).div(100));
-
-  console.debug(
-    deal.to_currency.concat(deal.from_currency),
-    deal.completed_manual_safety_orders_count,
-    deviation.toString(),
-    maxBuyPrice.toString(),
-    +deal.bought_amount
-  );
-
-  if (maxBuyPrice.lt(deal.current_price) || !(await oversold(deal.to_currency.concat(deal.from_currency))))
-    return undefined;
-
-  const order = await api.dealAddFunds({
-    quantity: +deal.bought_amount,
     is_market: true,
     response_type: "market_order",
     deal_id: deal.id,
@@ -97,10 +64,7 @@ export const handler: Handler<{}> = async () => {
   if (!deals) return;
 
   const orders = await Promise.all(
-    deals
-      .filter((deal) => +deal.actual_profit_percentage < 0)
-      // .filter((deal) => deal.to_currency.concat(deal.from_currency) === "YFIUSDT")
-      .map((deal) => buyTheDip(deal))
+    deals.filter((deal) => deal.max_safety_orders === deal.completed_safety_orders_count).map((deal) => buyTheDip(deal))
   );
 
   (orders.filter((order) => order !== undefined) as [SafetyOrderType]).forEach(({ deal, order }) => {
