@@ -20,7 +20,7 @@ const bb = async (symbol: string): Promise<[number, boolean]> => {
     });
     const crossUp = CrossUp.calculate({
       lineA: bollingerBands.map((bollingerBand) => bollingerBand.pb),
-      lineB: new Array(bollingerBands.length).fill(-0.1),
+      lineB: new Array(bollingerBands.length).fill(0),
     });
     return [bollingerBands[bollingerBands.length - 1].upper, crossUp[crossUp.length - 1]];
   } catch (e) {
