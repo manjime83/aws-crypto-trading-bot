@@ -106,5 +106,3 @@ export const handler: Handler<{}> = async () => {
     }
   });
 };
-
-// CloudWatch Logs Insights Query: filter @message like /3commas.io/ | fields @message | sort @timestamp desc | limit 100
