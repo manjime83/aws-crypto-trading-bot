@@ -6,7 +6,7 @@ import Decimal from "decimal.js";
 
 import { DealType, OrderType, SafetyOrderType } from "./types";
 
-const { APIKEY, SECRET, BB_INTERVAL, BB_PERIOD, BB_STDDEV } = process.env;
+const { APIKEY, SECRET, BB_INTERVAL, BB_PERIOD, BB_STDDEV, MARTINGALE } = process.env;
 const api = new threecommas_api_node_1({ apiKey: APIKEY!, apiSecret: SECRET! });
 const binance = Binance();
 
@@ -44,11 +44,29 @@ const buyTheDip = async (deal: DealType) => {
   if (+deal.current_price > maxBuyPrice) return undefined;
 
   const [highbb, cross] = await bb(deal.to_currency.concat(deal.from_currency));
-  console.log(deal.to_currency.concat(deal.from_currency), Math.min(maxBuyPrice, highbb), cross);
+  console.debug(
+    deal.to_currency.concat(deal.from_currency),
+    "/",
+    +deal.current_price,
+    "<",
+    maxBuyPrice,
+    "=",
+    +deal.current_price < maxBuyPrice,
+    "/",
+    highbb,
+    "<",
+    +lastOrder.average_price,
+    "=",
+    highbb < +lastOrder.average_price,
+    "/",
+    "pB =",
+    cross
+  );
 
-  if (highbb > +lastOrder.average_price || !cross) return undefined;
+  if (highbb > +lastOrder.average_price) return undefined;
+  if (!cross) return undefined;
 
-  const totalQuantity = new Decimal(+deal.bought_volume).times(2);
+  const totalQuantity = new Decimal(+deal.bought_volume).times(+MARTINGALE!).toNumber();
   const order = await api.dealAddFunds({
     quantity: totalQuantity,
     is_market: true,
@@ -64,7 +82,10 @@ export const handler: Handler<{}> = async () => {
   if (!deals) return;
 
   const orders = await Promise.all(
-    deals.filter((deal) => deal.max_safety_orders === deal.completed_safety_orders_count).map((deal) => buyTheDip(deal))
+    deals
+      // .filter((deal) => deal.max_safety_orders === deal.completed_safety_orders_count)
+      // .slice(-1)
+      .map((deal) => buyTheDip(deal))
   );
 
   (orders.filter((order) => order !== undefined) as [SafetyOrderType]).forEach(({ deal, order }) => {

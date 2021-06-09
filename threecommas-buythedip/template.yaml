@@ -9,9 +9,11 @@ Parameters:
   BBInterval:
     Type: String
   BBPeriod:
-    Type: String
+    Type: Number
   BBStdDev:
-    Type: String
+    Type: Number
+  Martingale:
+    Type: Number
 
 Resources:
   Role:
@@ -55,6 +57,7 @@ Resources:
           BB_INTERVAL: !Ref BBInterval
           BB_PERIOD: !Ref BBPeriod
           BB_STDDEV: !Ref BBStdDev
+          MARTINGALE: !Ref Martingale
       Timeout: 60
 
   LogGroup:
