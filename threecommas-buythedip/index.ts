@@ -33,9 +33,9 @@ const buyTheDip = async (deal: DealType) => {
   const orders = (await api.getDealSafetyOrders(deal.id)) as [OrderType];
   if (!orders) return undefined;
 
-  const lastOrder = orders.reduce((prev, curr) =>
-    curr.status_string === "Filled" && Date.parse(curr.updated_at) > Date.parse(prev.updated_at) ? curr : prev
-  );
+  const lastOrder = orders
+    .filter((deal) => deal.order_type === "BUY" && deal.status_string === "Filled")
+    .reduce((prev, curr) => (Date.parse(curr.updated_at) > Date.parse(prev.updated_at) ? curr : prev));
   const deviation = new Decimal(deal.safety_order_step_percentage).times(
     new Decimal(deal.martingale_step_coefficient).pow(deal.completed_safety_orders_count)
   );
