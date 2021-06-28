@@ -84,6 +84,7 @@ export const handler: Handler<{}> = async () => {
   const orders = await Promise.all(
     deals
       // .filter((deal) => deal.max_safety_orders === deal.completed_safety_orders_count)
+      // .filter((deal) => deal.from_currency === "USDT" && ["ADA", "BTT", "XLM"].includes(deal.to_currency))
       // .slice(-1)
       .map((deal) => buyTheDip(deal))
   );
