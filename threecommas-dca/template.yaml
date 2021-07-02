@@ -6,7 +6,7 @@ Parameters:
   ApiSecret:
     Type: String
     NoEcho: true
-  Martingale:
+  Percentage:
     Type: Number
 
 Resources:
@@ -48,7 +48,7 @@ Resources:
         Variables:
           APIKEY: !Ref ApiKey
           SECRET: !Ref ApiSecret
-          MARTINGALE: !Ref Martingale
+          PERCENTAGE: !Ref Percentage
       Timeout: 60
 
   LogGroup:
@@ -61,7 +61,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub ${AWS::StackName}
-      ScheduleExpression: rate(1 day)
+      ScheduleExpression: cron(51 18 * * ? *)
       State: ENABLED
       Targets:
         - Arn: !GetAtt Function.Arn

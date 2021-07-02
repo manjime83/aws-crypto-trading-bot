@@ -4,11 +4,34 @@ import Decimal from "decimal.js";
 
 import { DealType, SafetyOrderType } from "./types";
 
-const { APIKEY, SECRET, MARTINGALE } = process.env;
+const { APIKEY, SECRET, PERCENTAGE } = process.env;
 const api = new threecommas_api_node_1({ apiKey: APIKEY!, apiSecret: SECRET! });
 
 const dca = async (deal: DealType) => {
-  const totalQuantity = new Decimal(+deal.base_order_volume).times(+MARTINGALE!).toNumber();
+  const dataForAddingFunds = await api.makeRequest("GET", `/public/api/ver1/deals/${deal.id}/data_for_adding_funds?`, {
+    deal_id: deal.id,
+  });
+
+  const totalQuantity = new Decimal(deal.bought_volume)
+    .times(+PERCENTAGE!)
+    .div(100)
+    .div(dataForAddingFunds.orderbook_price)
+    .toNearest(dataForAddingFunds.min_lot_size)
+    .toNumber();
+
+  console.debug(
+    deal.to_currency.concat(deal.from_currency),
+    "buying",
+    totalQuantity,
+    deal.to_currency,
+    "at",
+    +deal.current_price,
+    deal.to_currency + deal.from_currency,
+    "with",
+    +deal.current_price * totalQuantity,
+    deal.from_currency
+  );
+
   const order = await api.dealAddFunds({
     quantity: totalQuantity,
     is_market: true,
@@ -25,9 +48,9 @@ export const handler: Handler<{}> = async () => {
 
   const orders = await Promise.all(
     deals
-      // .filter((deal) => deal.max_safety_orders === deal.completed_safety_orders_count)
-      .filter((deal) => deal.from_currency === "USDT" && ["ADA"].includes(deal.to_currency))
-      // .slice(-1)
+      .sort((pv, cv) => +pv.actual_profit_percentage - +cv.actual_profit_percentage)
+      // .filter((deal) => deal.from_currency === "USDT" && [BASE_CURRENCY].includes(deal.to_currency))
+      .slice(-1)
       .map((deal) => dca(deal))
   );
 
