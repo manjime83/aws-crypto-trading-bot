@@ -48,9 +48,9 @@ export const handler: Handler<{}> = async () => {
 
   const orders = await Promise.all(
     deals
-      .sort((pv, cv) => +pv.actual_profit_percentage - +cv.actual_profit_percentage)
-      // .filter((deal) => deal.from_currency === "USDT" && [BASE_CURRENCY].includes(deal.to_currency))
-      .slice(-1)
+      // .sort((pv, cv) => +pv.actual_profit_percentage - +cv.actual_profit_percentage)
+      .filter((deal) => deal.from_currency === "USDT" && ["BTT"].includes(deal.to_currency))
+      // .slice(-1)
       .map((deal) => dca(deal))
   );
 
