@@ -1,20 +1,42 @@
 import { Handler } from "aws-lambda";
 const threecommas_api_node_1 = require("3commas-api-node");
+import Binance, { CandleChartInterval } from "binance-api-node";
+import { RSI } from "technicalindicators";
 import Decimal from "decimal.js";
 
 import { DealType, SafetyOrderType } from "./types";
 
 const { APIKEY, SECRET, PERCENTAGE } = process.env;
 const api = new threecommas_api_node_1({ apiKey: APIKEY!, apiSecret: SECRET! });
+const binance = Binance();
+
+const rsi = async (symbol: string): Promise<number> => {
+  try {
+    const candles = await binance.candles({ symbol, interval: CandleChartInterval.TWELVE_HOURS });
+    const rsi = RSI.calculate({ period: 14, values: candles.map((candle) => +candle.close) });
+    return rsi[rsi.length - 1]!;
+  } catch (e) {
+    console.error(e.message);
+    return 100;
+  }
+};
 
 const dca = async (deal: DealType) => {
-  const dataForAddingFunds = await api.makeRequest("GET", `/public/api/ver1/deals/${deal.id}/data_for_adding_funds?`, {
-    deal_id: deal.id,
-  });
+  const [dataForAddingFunds, rsiValue] = await Promise.all([
+    api.makeRequest("GET", `/public/api/ver1/deals/${deal.id}/data_for_adding_funds?`, {
+      deal_id: deal.id,
+    }),
+    rsi(deal.to_currency.concat(deal.from_currency)),
+  ]);
+
+  const rsiBonus = new Decimal(150).minus(rsiValue).div(100);
+
+  console.debug(deal.to_currency.concat(deal.from_currency), "RSI value:", rsiValue, "RSI bonus:", rsiBonus.toNumber());
 
   const totalQuantity = new Decimal(deal.bought_volume)
     .times(+PERCENTAGE!)
     .div(100)
+    .times(rsiBonus)
     .div(dataForAddingFunds.orderbook_price)
     .toNearest(dataForAddingFunds.min_lot_size)
     .toNumber();
