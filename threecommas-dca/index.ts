@@ -12,7 +12,7 @@ const binance = Binance();
 
 const rsi = async (symbol: string): Promise<number> => {
   try {
-    const candles = await binance.candles({ symbol, interval: CandleChartInterval.TWELVE_HOURS });
+    const candles = await binance.candles({ symbol, interval: CandleChartInterval.ONE_DAY });
     const rsi = RSI.calculate({ period: 14, values: candles.map((candle) => +candle.close) });
     return rsi[rsi.length - 1]!;
   } catch (e) {
@@ -29,7 +29,7 @@ const dca = async (deal: DealType) => {
     rsi(deal.to_currency.concat(deal.from_currency)),
   ]);
 
-  const rsiBonus = new Decimal(150).minus(rsiValue).div(100);
+  const rsiBonus = new Decimal(100).minus(rsiValue).times(2).div(100);
 
   console.debug(deal.to_currency.concat(deal.from_currency), "RSI value:", rsiValue, "RSI bonus:", rsiBonus.toNumber());
 

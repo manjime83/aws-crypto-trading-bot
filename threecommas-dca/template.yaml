@@ -61,7 +61,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub ${AWS::StackName}
-      ScheduleExpression: cron(51 6,18 * * ? *)
+      ScheduleExpression: cron(51 18 * * ? *)
       State: ENABLED
       Targets:
         - Arn: !GetAtt Function.Arn
